@@ -14,5 +14,5 @@ sudo chmod 644 /usr/lib/python2.7/site-packages/httplib2-0.9.1-py2.7.egg/httplib
 [ -d /tmp/benchmark ] && rm -rf /tmp/benchmark
 mkdir -p /tmp/benchmark
 cd /tmp/benchmark
-rm -rf /vagrant/release/artifacts/*
+rm -f /vagrant/release/artifacts/benchmark
 pyinstaller --distpath=/vagrant/release/artifacts --hidden-import=pkg_resources -F /vagrant/release/benchmark.spec
