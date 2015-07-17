@@ -3,7 +3,7 @@
     * Clone this repository to your local machine
     * Move into the directory
     * Generate your own OAUTH2 credentials
-        * Follow the instructions (here)[http://gspread.readthedocs.org/en/latest/oauth2.html] up until the point where it says "Install oauth2client". Stop there - below steps will do this for you.
+        * Follow the instructions [here](http://gspread.readthedocs.org/en/latest/oauth2.html) up until the point where it says "Install oauth2client". Stop there - below steps will do this for you.
         * Copy the file that was generated to the data/google-credentials.json file in your cloned repository
     * Install [Vagrant](http://www.vagrantup.com) and [Virtualbox](https://www.virtualbox.org/wiki/Downloads)
     * Run ```build_artifact.sh```
