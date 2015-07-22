@@ -5,4 +5,4 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $DIR
 vagrant up
 vagrant ssh -c "/vagrant/release/build.sh"
-vagrant destroy
+vagrant destroy -f

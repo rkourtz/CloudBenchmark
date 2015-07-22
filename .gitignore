@@ -56,6 +56,8 @@ docs/_build/
 *.json
 release/artifacts/*
 
+# Vagrant
+.vagrant
 
 # OSX
 .DS_Store

@@ -5,9 +5,9 @@
 # https://s3.amazonaws.com/nuodb-rackspace/benchmark
 ####
 
-
 #### TODO: Set "platform" variable for Openstack and Azure
 
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 import gspread
 import inspect
 import json
@@ -21,6 +21,8 @@ import urllib2
 import uuid as pyuuid
 
 UUID_FILE="/benchmark.uuid"
+
+DESCRIPTION="Runs shell scripts to benchmark a host, upload to Google Sheets"
 
 class spreadsheet():
   def __init__(self):
@@ -69,7 +71,6 @@ class spreadsheet():
     self.check_client()
     return self.wks.append_row(line)
   
-
 def execute_command(command, dir = None, sudo_user = None):
   delimiter = str(pyuuid.uuid4())
   if sudo_user != None:
@@ -113,13 +114,23 @@ def get_metadata():
   metadata = {}
   for url in urls.keys():
     try:
-      print urls[url]
       urllib2.urlopen(url, timeout=4).read()   
       metadata = urls[url]()
     except Exception, e:
       pass
   return metadata
       
+      
+parser = ArgumentParser(description=DESCRIPTION, formatter_class=RawDescriptionHelpFormatter)
+parser.add_argument("-g", "--test-groups", dest="testGroups", help="A comma separated list of the test groups to run. Default is \"all\".", default="*")
+parser.add_argument("-n", "--notes", dest="notes", help="Helpful notes on this run to be added to the spreadsheet", default="")
+args = parser.parse_args()
+
+if args.testGroups == "*":
+  testGroups = args.testGroups
+else:
+  testGroups = args.testGroups.split(",")
+  
 package_installer=None
 package_installers=["yum", "apt-get", "zypper"]
 for installer in package_installers:
@@ -199,45 +210,49 @@ else:
   platform = ""
   host_metadata['instance-type'] = ""
 host_metadata["UNIXTIME"] = int(time.time())
-if len(sys.argv) > 1:
-  notes = " ".join(sys.argv[1:])
-else:
-  notes = ""
 
 print "Getting tests..."
 ss = spreadsheet()
 col=2 
-def update_next_cell(value):
+def update_next_cell(value, tries=5):
   global col
   rownum = ss.get_host_row(host_uuid=host_metadata["UUID"])
-  try:
-    ss.update_cell(rownum, col, value)
-  except Exception, e:
-    pass
+  success = False
+  while tries > 0 and not success:
+    try:
+      ss.update_cell(rownum, col, value)
+      success = True
+    except Exception, e:
+      time.sleep(20)
+      tries -= 1
   col += 1
   
-for value in [host_metadata["UNIXTIME"], notes, platform, host_metadata["instance-type"], json.dumps(host_metadata["METADATA"])]:
+for value in [host_metadata["UNIXTIME"], args.notes, platform, host_metadata["instance-type"], json.dumps(host_metadata["METADATA"])]:
   update_next_cell(value)
 
 results = []
 try:
   for test in ss.get_tests():
-    print "Running %s" % test['COMMAND']
-    if len(test['USER']) > 0:
-      user=test['USER']
+    if testGroups !="*" and isinstance(testGroups, list) and str(test["GROUP"]) not in testGroups:
+      print "Skipping %s (%s)" % (test['TEST NAME'], test['COMMAND'])
+      update_next_cell("--DISABLED--")
     else:
-      user=None
-    (exitcode, stdout, stderr) = execute_command(test['COMMAND'], sudo_user=user)
-    if exitcode != 0:
-      print "-- Failed!"
-      print "#### BEGIN DUMP ####"
-      print stdout
-      print stderr
-      print "#### END DUMP   ####"
-      update_next_cell("--FAILEDCOMMAND--")
-    else:
-      print "-- %s" % stdout
-      update_next_cell(stdout) 
+      print "Running %s (%s)" % (test['TEST NAME'], test['COMMAND'])
+      if len(test['USER']) > 0:
+        user=test['USER']
+      else:
+        user=None
+      (exitcode, stdout, stderr) = execute_command(test['COMMAND'], sudo_user=user)
+      if exitcode != 0:
+        print "-- Failed!"
+        print "#### BEGIN DUMP ####"
+        print stdout
+        print stderr
+        print "#### END DUMP   ####"
+        update_next_cell("--FAILEDCOMMAND--")
+      else:
+        print "-- %s" % stdout
+        update_next_cell(stdout) 
   print "Complete"    
 except KeyboardInterrupt:
   sys.exit(1)
