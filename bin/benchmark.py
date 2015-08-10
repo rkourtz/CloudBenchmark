@@ -124,51 +124,53 @@ def get_metadata():
 parser = ArgumentParser(description=DESCRIPTION, formatter_class=RawDescriptionHelpFormatter)
 parser.add_argument("-g", "--test-groups", dest="testGroups", help="A comma separated list of the test groups to run. Default is \"all\".", default="*")
 parser.add_argument("-n", "--notes", dest="notes", help="Helpful notes on this run to be added to the spreadsheet", default="")
+parser.add_argument("--nopackage", dest="nopackage", action="store_true", help="Don't install helper packages sysbench and iperf")
 args = parser.parse_args()
 
 if args.testGroups == "*":
   testGroups = args.testGroups
 else:
   testGroups = args.testGroups.split(",")
-  
-package_installer=None
-package_installers=["yum", "apt-get", "zypper"]
-for installer in package_installers:
-  if package_installer == None and execute_command("which %s" % installer)[0] == 0:
-    package_installer = installer
-if package_installer == None:
-  print "Cannot determine the package install method."
-  print "Tried: %s" % ", ".join(package_installers)
-  print "Cannot continue."
-  sys.exit(2)
-elif package_installer == "apt-get":
-  print "Refreshing repositories"
-  (exitcode, stdout, stderr) = execute_command("apt-get -y update", sudo_user="root")
 
-print "Testing for utilities..."
-commands={
-          'sysbench': {
-           "yum": "https://dl.fedoraproject.org/pub/epel/6/x86_64/sysbench-0.4.12-5.el6.x86_64.rpm",
-          },
-          "iperf": {
-            "yum": "https://dl.fedoraproject.org/pub/epel/6/x86_64/iperf-2.0.5-11.el6.x86_64.rpm",
-          }
-}
-for command in commands.keys():
-  if execute_command("which %s" % command)[0] != 0:
-    print "Installing %s" % command
-    install_command = "%s -y install %s" % (package_installer, command)
-    (exitcode, stdout, stderr) = execute_command(install_command, sudo_user="root")
-    if exitcode != 0 and package_installer in commands[command].keys():
-      print "-- '%s' failed. Trying from %s" % (install_command, commands[command][package_installer])
-      install_command = "%s -y install %s" % (package_installer, commands[command][package_installer])
+if not args.nopackage:
+  package_installer=None
+  package_installers=["yum", "apt-get", "zypper"]
+  for installer in package_installers:
+    if package_installer == None and execute_command("which %s" % installer)[0] == 0:
+      package_installer = installer
+  if package_installer == None:
+    print "Cannot determine the package install method."
+    print "Tried: %s" % ", ".join(package_installers)
+    print "Cannot continue."
+    sys.exit(2)
+  elif package_installer == "apt-get":
+    print "Refreshing repositories"
+    (exitcode, stdout, stderr) = execute_command("apt-get -y update", sudo_user="root")
+  
+  print "Testing for utilities..."
+  commands={
+            'sysbench': {
+             "yum": "https://dl.fedoraproject.org/pub/epel/6/x86_64/sysbench-0.4.12-5.el6.x86_64.rpm",
+            },
+            "iperf": {
+              "yum": "https://dl.fedoraproject.org/pub/epel/6/x86_64/iperf-2.0.5-11.el6.x86_64.rpm",
+            }
+  }
+  for command in commands.keys():
+    if execute_command("which %s" % command)[0] != 0:
+      print "Installing %s" % command
+      install_command = "%s -y install %s" % (package_installer, command)
       (exitcode, stdout, stderr) = execute_command(install_command, sudo_user="root")
-    if exitcode != 0:
-      print "-- '%s' failed. Cannot continue." % install_command
-      print "ERROR DUMP"
-      print stdout
-      print stderr
-      sys.exit(2)
+      if exitcode != 0 and package_installer in commands[command].keys():
+        print "-- '%s' failed. Trying from %s" % (install_command, commands[command][package_installer])
+        install_command = "%s -y install %s" % (package_installer, commands[command][package_installer])
+        (exitcode, stdout, stderr) = execute_command(install_command, sudo_user="root")
+      if exitcode != 0:
+        print "-- '%s' failed. Cannot continue." % install_command
+        print "ERROR DUMP"
+        print stdout
+        print stderr
+        sys.exit(2)
 
 web_endpoints=["https://spreadsheets.google.com"]
 for web_endpoint in web_endpoints:

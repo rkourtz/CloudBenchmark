@@ -1,4 +1,5 @@
 #1/bin/bash
+[ ! -d /vagrant ] && echo "ERROR: Please run the script ../build_artifact.sh instead of this one" && exit 2
 
 sudo yum -y install git
 cd ~
