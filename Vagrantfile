@@ -19,7 +19,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.ssh.forward_agent = true
 
-  config.vm.synced_folder "/Users/rkourtz/workspace", "/workspace"
+  #config.vm.synced_folder "/Users/rkourtz/workspace", "/workspace"
 
   config.vm.provision "shell", inline: bootstrap
 

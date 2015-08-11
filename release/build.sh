@@ -1,8 +1,9 @@
 #1/bin/bash
 [ ! -d /vagrant ] && echo "ERROR: Please run the script ../build_artifact.sh instead of this one" && exit 2
 
-sudo yum -y install git
+sudo yum -y install git wget
 cd ~
+wget https://bootstrap.pypa.io/ez_setup.py -O - | sudo python
 if [ ! -d 'pyinstaller' ];
 then
   git clone -b develop https://github.com/pyinstaller/pyinstaller.git
@@ -11,7 +12,7 @@ then
 fi
 cd /vagrant
 sudo python setup.py develop
-sudo chmod 644 /usr/lib/python2.7/site-packages/httplib2-0.9.1-py2.7.egg/httplib2/cacerts.txt
+sudo find /usr/lib -name cacerts.txt -exec chmod 644 {} \;
 [ -d /tmp/benchmark ] && rm -rf /tmp/benchmark
 mkdir -p /tmp/benchmark
 cd /tmp/benchmark
