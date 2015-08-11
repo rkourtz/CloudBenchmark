@@ -87,12 +87,13 @@ def execute_command(command, dir = None, sudo_user = None):
   return (exit_code, stdout, stderr)
 
 def get_metadata():
-  def amazon_data(url="http://169.254.169.254/latest/meta-data/"):
+  global DEBUG
+  def __crawl_data(url="http://169.254.169.254/latest/meta-data/"):
     data = {}
     for key in urllib2.urlopen(url).read().split("\n"):
       newurl = "".join([url, key.split("=")[0].strip()])
       if key[-1] == "/":
-        data[key[0:-1]] = amazon_data(newurl)
+        data[key[0:-1]] = __crawl_data(newurl)
       else:
         try:
           data[key] = urllib2.urlopen(newurl).read()
@@ -100,38 +101,40 @@ def get_metadata():
           print "Can't get %s" % newurl
     return data
 
-  def openstack_data(url="http://169.254.169.254/openstack/latest/meta_data.json"):
-    data = json.loads(urllib2.urlopen(url).read())
-    return data
-
-  def google_data(url="http://metadata.google.internal/computeMetadata/v1/instance/?recursive=true", headers={"Metadata-Flavor": "Google"}):
-    data = json.loads(urllib2.urlopen(urllib2.Request(url, headers=headers)).read())
-    return data
+  def amazon():
+    return("AWS", __crawl_data())
   
-  urls = {
-          "http://169.254.169.254/latest/meta-data/": amazon_data,
-          "http://169.254.169.254/openstack": openstack_data,
-          "http://metadata.google.internal/": google_data,
-          }
-  metadata = {}
-  for url in urls.keys():
+  def openstack():
+    return ("openstack", __crawl_data())
+
+  def google(url="http://metadata.google.internal/computeMetadata/v1/instance/?recursive=true", headers={"Metadata-Flavor": "Google"}):
+    data = json.loads(urllib2.urlopen(urllib2.Request(url, headers=headers)).read())
+    return ("GCE", data)
+  
+  urls = (
+          ("http://169.254.169.254/openstack", openstack),
+          ("http://169.254.169.254/latest/meta-data/", amazon),
+          ("http://metadata.google.internal/", google),
+          )
+  for pair in urls:
     try:
+      url, function = pair
+      if DEBUG: print "Getting metadata from %s" % url
       data = urllib2.urlopen(url, timeout=10)
-      if data.get_code() == 200:
-        print "Getting metadata from %s" % url
-        metadata = urls[url]()
-      else:
-        metadata = {}
-    except Exception, e:
+      if data.getcode() == 200:
+        return function()
+    except urllib2.URLError:
       pass
-  return metadata
+  return ("", {})
       
       
 parser = ArgumentParser(description=DESCRIPTION, formatter_class=RawDescriptionHelpFormatter)
 parser.add_argument("-g", "--test-groups", dest="testGroups", help="A comma separated list of the test groups to run. Default is \"all\".", default="*")
 parser.add_argument("-n", "--notes", dest="notes", help="Helpful notes on this run to be added to the spreadsheet", default="")
 parser.add_argument("-s", "--storage-backend", dest="storagebackend", help="What type of storage backend is being tested (IO1, GP2, Ceph)", default="")
+parser.add_argument("--debug", dest="debug", help="Add verbose output", action="store_true")
 args = parser.parse_args()
+DEBUG=args.debug
 
 if args.testGroups == "*":
   testGroups = args.testGroups
@@ -164,19 +167,18 @@ else:
   execute_command("chmod 644 %s" % (UUID_FILE), sudo_user="root")
   os.unlink(f.name)
 host_metadata["HOSTNAME"] = execute_command("hostname")[1]
-host_metadata["METADATA"] = get_metadata()
-if "instance-type" in host_metadata['METADATA']:
-  platform = "AWS"
-  host_metadata['instance-type'] = host_metadata['METADATA']['instance-type']
-elif "machine-type" in host_metadata['METADATA']:
-  platform = "GCE"
+(platform, host_metadata["METADATA"]) = get_metadata()
+if DEBUG: print "DEBUG: Host Medatata\n%s" % json.dumps(host_metadata['METADATA'], indent=2)
+if platform == "GCE":
   host_metadata['instance-type'] = os.path.basename(host_metadata['METADATA']["machine-type"])
 elif os.path.exists("/vagrant"):
   platform = "Vagrant"
   host_metadata['instance-type'] = "VAGRANT"
+elif "instance-type" in host_metadata["METADATA"]:
+  host_metadata['instance-type'] = host_metadata["METADATA"]['instance-type']
 else:
-  platform = ""
   host_metadata['instance-type'] = ""
+if DEBUG: print "Platform is %s" % platform
 host_metadata["UNIXTIME"] = int(time.time())
 
 print "Getting tests..."
