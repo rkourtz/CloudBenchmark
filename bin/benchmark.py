@@ -8,11 +8,13 @@
 #### TODO: Set "platform" variable for Openstack and Azure
 
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
+import datetime
 import gspread
 import inspect
 import json
 from oauth2client.client import SignedJwtAssertionCredentials
 import os
+import pwd
 import subprocess
 import sys
 import tempfile
@@ -73,7 +75,7 @@ class spreadsheet():
   
 def execute_command(command, dir = None, sudo_user = None):
   delimiter = str(pyuuid.uuid4())
-  if sudo_user != None:
+  if sudo_user != None and sudo_user != pwd.getpwuid( os.getuid() )[ 0 ]:
     command = "sudo -n -u %s %s" % (sudo_user, command)
   if dir != None:
     command = "cd %s && %s" % (dir, command)
@@ -114,8 +116,12 @@ def get_metadata():
   metadata = {}
   for url in urls.keys():
     try:
-      urllib2.urlopen(url, timeout=4).read()   
-      metadata = urls[url]()
+      data = urllib2.urlopen(url, timeout=10)
+      if data.get_code() == 200:
+        print "Getting metadata from %s" % url
+        metadata = urls[url]()
+      else:
+        metadata = {}
     except Exception, e:
       pass
   return metadata
@@ -228,6 +234,10 @@ def update_next_cell(value, tries=5):
       time.sleep(20)
       tries -= 1
   col += 1
+
+def skip_next_cell():
+  global col
+  col += 1
   
 for value in [host_metadata["UNIXTIME"], args.notes, platform, host_metadata["instance-type"], json.dumps(host_metadata["METADATA"])]:
   update_next_cell(value)
@@ -236,10 +246,11 @@ results = []
 try:
   for test in ss.get_tests():
     if testGroups !="*" and isinstance(testGroups, list) and str(test["GROUP"]) not in testGroups:
-      print "Skipping %s (%s)" % (test['TEST NAME'], test['COMMAND'])
-      update_next_cell("--DISABLED--")
+      print "Skipping %s" % (test['TEST NAME'])
+      skip_next_cell()
     else:
-      print "Running %s (%s)" % (test['TEST NAME'], test['COMMAND'])
+      print "Running %s" % (test['TEST NAME'])
+      print "  %s" % test['COMMAND']
       if len(test['USER']) > 0:
         user=test['USER']
       else:
