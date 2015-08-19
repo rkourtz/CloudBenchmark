@@ -1,7 +1,7 @@
 #1/bin/bash
 [ ! -d /vagrant ] && echo "ERROR: Please run the script ../build_artifact.sh instead of this one" && exit 2
 
-sudo yum -y install git wget
+sudo yum -y install git wget gcc python-devel libffi libffi-devel openssl-devel
 cd ~
 wget https://bootstrap.pypa.io/ez_setup.py -O - | sudo python
 if [ ! -d 'pyinstaller' ];
