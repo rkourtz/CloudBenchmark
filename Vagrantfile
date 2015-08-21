@@ -1,5 +1,5 @@
 bootstrap = <<SCRIPT
-sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-6.noarch.rpm
 sudo yum -y install gcc gcc-c++ python-devel kernel-headers libffi-devel openssl-devel
 SCRIPT
 
@@ -10,9 +10,9 @@ SCRIPT
 VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
-  config.vm.box = "CentOS/7.1"
+  config.vm.box = "CentOS/6.6"
 
-  config.vm.box_url = "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_centos-7.1_chef-provisionerless.box"
+  config.vm.box_url = "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_centos-6.6_chef-provisionerless.box"
 
   # config.vm.network :forwarded_port, guest: 80, host: 8080
   #config.vm.network :public_network
