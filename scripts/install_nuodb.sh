@@ -1,50 +1,93 @@
 #!/bin/bash
 
-DOMAIN_PASSWORD="bird"
-CFG_DIR="/opt/nuodb/etc"
+[ `whoami` != "root" ] && echo "This script must be run as root" && exit 2
 
-[ `whoami` != "root" ] && echo "This script muct be run as root" && exit 2
+NUODB_DOMAIN_PASSWORD="bird"
+NUODB_CFG_DIR="/opt/nuodb/etc"
+NUODB_DOWNLOAD_URL="http://download.nuohub.org"
+CURRENT_VERSION_URL="${NUODB_DOWNLOAD_URL}/current_version.txt" 
+THP_FILES=(/sys/kernel/mm/transparent_hugepage/enabled /sys/kernel/mm/transparent_hugepage/defrag /sys/kernel/mm/redhat_transparent_hugepage/enable /sys/kernel/mm/redhat_transparent_hugepage/defrag)
 
-install_bin="XXX"
-for tool in yum dpkg;
+get_version ()
+{
+    printf "Getting current NuoDB version "
+    version=`curl -s ${CURRENT_VERSION_URL} | awk -F "|" '{sub("-",".",$1); split($1,version,"="); print version[2]}'`
+    printf "%s\n" ${version}
+}
+
+get_package()
+{
+    printf "Downloading %s ..." ${1}
+    curl -sO ${1}
+    printf "\tDone.\n"
+}
+
+for tool in yum dpkg
 do
-  which $tool &> /dev/null
-  [ "$?" -eq "0" ] && install_bin=`which $tool`
+  which ${tool} &> /dev/null && install_bin=`which ${tool}`
 done
 
-[ "$install_bin" == "XXX" ] && echo "Could not determine installation command" && exit 2
+[ ${install_bin:-XXX} == "XXX" ] && echo "Could not determine installation command" && exit 2
 
 case `basename ${install_bin}` in
-  "dpkg") apt-get -y update; apt-get -y install openjdk-7-jre-headless curl sed;;
-  "yum") yum -y install java curl sed;;
+  "dpkg") apt-get -y update; apt-get -y install openjdk-7-jre-headless curl sed
+          get_version
+          if [ ${version:-NULL} != "NULL" ] 
+          then
+              nuodb_package="${NUODB_DOWNLOAD_URL}/nuodb_${version}_amd64.deb" 
+              pushd /tmp &> /dev/null
+              printf "Installing NuoDB version %s ..." ${version}
+              if [ ! -f $(basename ${nuodb_package}) ]
+              then
+                  get_package ${nuodb_package} && ${install_bin} -i $(basename ${nuodb_package})
+              else
+                  "${install_bin} -i $(basename ${nuodb_package})"
+              fi
+              printf "\tDone.\n"
+              popd &> /dev/null
+          else
+              echo "Cannot determine NuoDB version"
+              exit 2
+          fi
+        ;;
+  "yum")  ${install_bin} -y install java curl sed
+          get_version
+          if [ ${version:-NULL} != "NULL" ] 
+          then
+              nuodb_package="${NUODB_DOWNLOAD_URL}/nuodb-${version}.x86_64.rpm";
+              pushd /tmp &>/dev/null
+              printf "Installing NuoDB version %s" ${version}
+              if [ ! -f $(basename ${nuodb_package}) ]
+              then
+                  get_package ${nuodb_package} && ${install_bin} -y install $(basename ${nuodb_package})
+              else
+                 ${install_bin} -y install $(basename ${nuodb_package})
+              fi
+              printf "\tDone.\n"
+              popd &> /dev/null
+          else
+              echo "Cannot determine NuoDB version"
+              exit 2
+          fi
+        ;;
 esac
 
-version=`curl http://download.nuohub.org/current_version.txt | awk -F "|" '{print $1}' | awk -F "=" '{print $2}' | sed 's/-/./g'`
-
-case `basename ${install_bin}` in
-  "dpkg") 
-    artifact="http://download.nuohub.org/nuodb_${version}_amd64.deb"; 
-    tempfile=/tmp/nuodb.deb;
-    install_command="$install_bin -i $tempfile";;
-  "yum") 
-    artifact="http://download.nuohub.org/nuodb-${version}.x86_64.rpm";
-    tempfile=/tmp/nuodb.rpm;
-    install_command="$install_bin -y localinstall $tempfile";;
-esac
-
-echo "Downloading $artifact"
-[ -f $tempfile ] || curl -o $tempfile $artifact
-$install_command
-sed -ie "s/^[# ]*domainPassword =.*/domainPassword = $DOMAIN_PASSWORD/" ${CFG_DIR}/default.properties
-#/etc/init.d/nuoagent start
+printf "Setting NuoDB password ... "
+sed -ie "s/^[# ]*domainPassword =.*/domainPassword = ${NUODB_DOMAIN_PASSWORD}/" ${NUODB_CFG_DIR}/default.properties
+printf "\tDone.\n"
 
 # Disable THP
-for file in /sys/kernel/mm/transparent_hugepage/enabled /sys/kernel/mm/transparent_hugepage/defrag /sys/kernel/mm/redhat_transparent_hugepage/enable /sys/kernel/mm/redhat_transparent_hugepage/defrag;
+printf "Disabling Transparent Huge Pages in:"
+for file in ${THP_FILES[@]} 
 do
-  if [ -f $file ];
+  if [ -f ${file} ] 
   then
+    printf "\n\t%s " ${file}
     echo never > ${file}
-    echo "echo never > ${file}" >> /etc/rc.local
+    if ! grep -q "${file}" /etc/rc.local
+    then
+        printf "and added it to rc.local"
+        echo "echo never > ${file}" >> /etc/rc.local
+    fi
   fi 
 done
-
