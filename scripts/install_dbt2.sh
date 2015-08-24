@@ -1,16 +1,14 @@
 #!/bin/bash
 
-install_bin="XXX"
 export NUODB_LIB_DIR=/opt/nuodb/lib64/
 export NUODB_INCLUDE_DIR=/opt/nuodb/include/
    
 for tool in yum dpkg;
 do
-  which $tool &> /dev/null
-  [ "$?" -eq "0" ] && install_bin=`which $tool`
+  which ${tool} &> /dev/null && install_bin=`which ${tool}`
 done
 
-[ "$install_bin" == "XXX" ] && echo "Could not determine installation command" && exit 2
+[ ${install_bin:-XXX} == "XXX" ] && echo "Could not determine installation command" && exit 2
 
 case `basename ${install_bin}` in
   "dpkg") apt-get -y update; apt-get -y install git cmake make gcc g++ psmisc python sysstat;;
